@@ -1,0 +1,9 @@
+c:\users\trm\documents\visual studio 2015\Projects\ArduinoWrapper\bin\Debug\ArduinoWrapper.exe.config
+c:\users\trm\documents\visual studio 2015\Projects\ArduinoWrapper\obj\Debug\ArduinoWrapper.csprojResolveAssemblyReference.cache
+c:\users\trm\documents\visual studio 2015\Projects\ArduinoWrapper\obj\Debug\ArduinoWrapper.Form1.resources
+c:\users\trm\documents\visual studio 2015\Projects\ArduinoWrapper\obj\Debug\ArduinoWrapper.Properties.Resources.resources
+c:\users\trm\documents\visual studio 2015\Projects\ArduinoWrapper\obj\Debug\ArduinoWrapper.csproj.GenerateResource.Cache
+c:\users\trm\documents\visual studio 2015\Projects\ArduinoWrapper\bin\Debug\ArduinoWrapper.exe
+c:\users\trm\documents\visual studio 2015\Projects\ArduinoWrapper\bin\Debug\ArduinoWrapper.pdb
+c:\users\trm\documents\visual studio 2015\Projects\ArduinoWrapper\obj\Debug\ArduinoWrapper.exe
+c:\users\trm\documents\visual studio 2015\Projects\ArduinoWrapper\obj\Debug\ArduinoWrapper.pdb

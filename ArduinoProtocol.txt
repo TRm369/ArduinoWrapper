@@ -1,0 +1,3 @@
+﻿byte 0-1: Constant beginning (ASCII Hi) - 0x48 0x69
+byte 1-2: Lenght of following data
+byte 3-?: Data
