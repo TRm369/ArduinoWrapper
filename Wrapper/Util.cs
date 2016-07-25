@@ -2,9 +2,9 @@
 
 namespace ArduinoWrapper {
     public class Util {
-        protected static readonly int Pow2_8 = 2 ^ 8;
-        protected static readonly int Pow2_16 = 2 ^ 16;
-        protected static readonly int Pow2_24 = 2 ^ 24;
+        protected static readonly int Pow2_8 = (int)Math.Pow(2,8);
+        protected static readonly int Pow2_16 = (int)Math.Pow(2, 16);
+        protected static readonly int Pow2_24 = (int)Math.Pow(2, 24);
 
         public static byte[] IntToByteArray(int value) {
             byte[] array = new byte[4];

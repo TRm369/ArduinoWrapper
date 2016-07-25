@@ -2,14 +2,18 @@
 const byte Beginning[] = { 0x48, 0x69 };
 byte ACK[] = { 0x06 };
 byte NAK[] = { 0x15 };
-const int Pow2_8 = 2 ^ 8;
-const int Pow2_16 = 2 ^ 16;
-const int Pow2_24 = 2 ^ 24;
-const int pinModeCommand = 0x20;
-const int digitalWriteCommand = 0x21;
-const int digitalReadCommand = 0x30;
+const int Pow2_8 = 256;
+const int Pow2_16 = 65536;
+const int Pow2_24 = 16777216;
+const byte pinModeCommand = 0x20;
+const byte digitalWriteCommand = 0x21;
+const byte digitalReadCommand = 0x30;
+const byte ConnectCommand = 0x11;
+const byte DisconnectCommand = 0x13;
+const byte KeepAliveCommand = 0x16;
 const int maxMessageLength = 64;
 const int PinCount = 54;
+const int ParameterCount = 3;
 
 //Variables declaration
 bool ReadPins[PinCount];
@@ -19,13 +23,18 @@ int DataLength;
 int Checksum;
 int Sum;
 byte command[3]; //used for temporary holding of commands before adding them to Data
-int i; //used in for loops
+int i; //used in for loops/as temp value holder
 byte* DataToSend; //used in Write
 int DataLengthToSend;
-int ACKtimeout = 1000;
+int Parameters[ParameterCount];
 int timeLeft;
+bool Connected = false;
+int ResendCount = 0;
+unsigned long oldMillis;
+int KeepAliveTimeLeft;
 
 void setup() {
+  pinMode(2, OUTPUT); //Connected LED
   for (i = 0; i < PinCount; i++) {
     ReadPins[i] = false;
     ReadPinsStates[i] = false;
@@ -35,19 +44,54 @@ void setup() {
 }
 
 void loop() {
+  digitalWrite(2, Connected); //Connected LED
+  if (Connected)
+    loopConnected();
+  else
+    loopNotConnected();
+}
+
+void loopNotConnected() {
+  if (Read()){ //Read data if any,          
+    if (CheckData(Data, DataLength, Checksum)) { //check if message is in tact using checksum
+      Write(ACK,1);
+      
+      if (Data[0] == ConnectCommand) { //If received message is PC trying to connect
+        for (i = 0; i < (DataLength - 2) / 4; i++) { 
+          Parameters[i + Data[1]] = ByteArrayToInt(Data, 2 + 4*i); //grag all the parameters it's sending
+        }
+        if ((DataLength - 2) / 4 + Data[1] == ParameterCount) { //This was the last of parameters, we are now sucecssfully connected
+          DataToSend[0] = 0x12; //Tell the PC we are now connected
+          DataLengthToSend = 1;
+          WriteData();
+          Connected = true; //And set mode to connected
+          KeepAliveTimeLeft = Parameters[2];
+          DeltaTime(); //Call DeltaTime so the next time it's called it returns delta time from now
+        }
+      }
+    }
+  }
+}
+
+void loopConnected() {
+  //KeepAlive check
+  KeepAliveTimeLeft = KeepAliveTimeLeft - DeltaTime();
+  if (KeepAliveTimeLeft < 0) {    
+    Connected = false;
+    return;
+  }
+  
+  //WRITE
+  PrepareWriteData();      //Prepare any data that need to be sent
+  WriteData();             //and send them
   
   //READ
   if (Read()){ //Read data if any,          
     if (CheckData(Data, DataLength, Checksum)) { //check if message is in tact using checksum
       Write(ACK,1);
       ProcessCommands(Data, DataLength);
-    } else //If data are corrupted do nothing PC will send them again
-      Write(NAK,1);
+    }//If data are corrupted do nothing PC will send them again after ACKtimeout
   }
-  
-  //WRITE
-  PrepareWriteData();      //Prepare any data that need to be sent
-  WriteData();                 //and send them
 }
 
 bool CheckData (byte* data, int dataLength, byte checksum) {
@@ -96,6 +140,15 @@ void ProcessCommands(byte* data, int dataLength) {
     if (data[index] == digitalWriteCommand){
       digitalWrite(data[index + 1], data[index + 2]);
     }
+    //KeepAlive command
+    if (data[index] == KeepAliveCommand){
+      KeepAliveTimeLeft = Parameters[2];
+    }
+    //Disconnect command
+    if (data[index] == DisconnectCommand){
+      Connected = false;
+      return;
+    }
     //Command processed, move on to next command
     index = index + 3;
   }
@@ -138,14 +191,15 @@ void AddDataToMessage (byte* data, int dataLength) {
 void WriteData() {
   if (DataLengthToSend == 0)
     return;
-    
+
   Write(DataToSend, DataLengthToSend);
-  timeLeft = ACKtimeout;
+  timeLeft = Parameters[0];
   while (timeLeft > 0) {
     if (Read()) {
       if (CheckData(Data, DataLength, Checksum)) { //check if message is in tact using checksum
         if (Data[0] = ACK[0]){ //Clean up and return
           DataLengthToSend = 0;
+          ResendCount = 0;
           return;
         }
         else {
@@ -157,7 +211,13 @@ void WriteData() {
     timeLeft = timeLeft - 10;
     delay(10);
   }
-  WriteData();
+  if (ResendCount < Parameters[1]) {
+    ResendCount++;
+    WriteData();
+  } else { //Clean up and return
+    DataLengthToSend = 0;
+    ResendCount = 0;
+  }
 }
 
 void Write(byte* data, int dataLength) {
@@ -175,6 +235,13 @@ void Write(byte* data, int dataLength) {
   Serial.write(data, dataLength);
 }
 
+int DeltaTime() {
+  i = millis() - oldMillis;
+  oldMillis = millis();
+  if
+  return i;
+}
+
 short ByteArrayToShort (byte value[]) {
   return (short)(value[0] * Pow2_8 + value[1]);
 }
@@ -187,3 +254,8 @@ byte* ShortToByteArray (short value) {
 
   return Array;
 }
+
+int ByteArrayToInt (byte* value, int offset) {
+  return value[offset] * Pow2_24 + value[1 + offset] * Pow2_16 + value[2 + offset] * Pow2_8 + value[3 + offset];
+}
+

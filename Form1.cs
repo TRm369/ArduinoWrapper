@@ -24,12 +24,20 @@ namespace ArduinoWrapper {
         private void button2_Click(object sender, EventArgs e) {
             ard.Port = (string)comboBox1.SelectedItem;
             ard.Connect();
-            if (ard.IsConnected)
-                checkBox1.Checked = true;
+            checkBox1.Checked = ard.IsConnected;
         }
 
         private void button3_Click(object sender, EventArgs e) {
             ard.DEBUG(textBox1.Text);
+        }
+
+        private void Form1_FormClosing(object sender, FormClosingEventArgs e) {
+            ard.Disconnect();
+        }
+
+        private void button4_Click(object sender, EventArgs e) {
+            ard.Disconnect();
+            checkBox1.Checked = ard.IsConnected;
         }
     }
 }
