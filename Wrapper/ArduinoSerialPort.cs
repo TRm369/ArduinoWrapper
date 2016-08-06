@@ -4,16 +4,18 @@ using System.Threading;
 using System.Collections.Generic;
 
 namespace ArduinoWrapper {
-    class ArduinoSerialPort {
+    public class ArduinoSerialPort {
         //Variables wrapped using properties
-        protected string _Port;
-        protected int _BaudRate = 9600;
-        protected int _ACKtimeout = 1000;
-        protected int _MaxResendCount = 3;
-        protected int _KeepAliveTimeout = 60000;
+        private string _Port;
+        private int _BaudRate = 9600;
+        private int _ACKtimeout = 1000;
+        private int _MaxResendCount = 3;
+        private int _KeepAliveTimeout = 60000;
+        private int _AnalogReadInterval = 100;
+        private int _AnalogFilter = 5;
 
         //Public variables/properties
-        public bool IsConnected { get; protected set; }
+        public bool IsConnected { get; private set; }
         public int BaudRate {
             get {
                 return _BaudRate;
@@ -71,15 +73,39 @@ namespace ArduinoWrapper {
             }
         }
         public int KeepAliveSendInterval = 55000;
+        public int AnalogReadInterval {
+            get {
+                return _AnalogReadInterval;
+            }
+            set {
+                if (IsConnected == false)
+                    _AnalogReadInterval = value;
+                else
+                    throw new Exception("Cannot change AnalogReadInterval while connected.");
+            }
+        }
+        public int AnalogFilter {
+            get {
+                return _AnalogFilter;
+            }
+            set {
+                if (IsConnected == false)
+                    _AnalogFilter = value;
+                else
+                    throw new Exception("Cannot change AnalogFilter while connected.");
+            }
+        }
+        public int MessagesToRead { get { return ReadBuffer.Count; } }
+        public int MessagesToSend { get { return WriteBuffer.Count; } }
 
-        //Protected variables
-        protected SerialPort ArduinoPort;
-        protected Thread TrafficControllerThread;
-        protected Queue<Message> WriteBuffer = new Queue<Message>();
-        protected Queue<Message> ReadBuffer = new Queue<Message>();
-        protected Action OnReadCallback;
-        protected Action<Exception> OnExceptionOccuredCallback;
-        protected System.Diagnostics.Stopwatch Stopwatch = new System.Diagnostics.Stopwatch();
+        //Private variables
+        private SerialPort ArduinoPort;
+        private Thread TrafficControllerThread;
+        private Queue<Message> WriteBuffer = new Queue<Message>();
+        private Queue<Message> ReadBuffer = new Queue<Message>();
+        private Action OnReadCallback;
+        private Action<Exception> OnExceptionOccuredCallback;
+        private System.Diagnostics.Stopwatch Stopwatch = new System.Diagnostics.Stopwatch();
 
         //Public functions
         public ArduinoSerialPort (string Port) {
@@ -102,10 +128,12 @@ namespace ArduinoWrapper {
 
             //Prepeare parameters for Arduino
             byte offset = 0;
-            int[] parameters = new int[3];
+            int[] parameters = new int[5];
             parameters[0] = ACKtimeout;
             parameters[1] = MaxResendCount;
             parameters[2] = KeepAliveTimeout;
+            parameters[3] = AnalogReadInterval;
+            parameters[4] = AnalogFilter;
 
             //Send the parameters
             Message m = new Message(MaxMessageLength);
@@ -136,19 +164,14 @@ namespace ArduinoWrapper {
         } 
 
         public void Disconnect() {
+            if (IsConnected == false)
+                return;
+
             TrafficControllerThread.Abort();
             WriteToPort(Constant.Disconnect);
             ReadACK();
             ArduinoPort.Close();
             IsConnected = false;
-        }
-
-        public void Write(Message m) {
-            WriteBuffer.Enqueue(m);
-        }
-
-        public void Write(byte[] Data) {
-            WriteBuffer.Enqueue(new Message(Data));
         }
 
         public void RegisterOnReadCallback (Action Callback) {
@@ -167,24 +190,36 @@ namespace ArduinoWrapper {
             OnExceptionOccuredCallback -= Callback;
         }
 
-        public void DEBUG(string s) {
-            byte[] message = { 0x20, 44, 1, 0x20, 37, 0, 0x21, 44, 1};
-            OnReadCallback = a;
-            Write(new Message(message));
-        }
-        public void a() {
-            Message m = ReadBuffer.Dequeue();
-            foreach (byte b in m.Data)
-                Console.WriteLine(b);
+        //Protected functions
+
+        protected void Write(Message m) {
+            WriteBuffer.Enqueue(m);
         }
 
-        //Protected functions
-        protected void TrafficController() {
+        protected void Write(byte[] Data) {
+            WriteBuffer.Enqueue(new Message(Data));
+        }
+
+        protected Message Read() {
+            if (ReadBuffer.Count > 0)
+                return ReadBuffer.Dequeue();
+            else
+                return null;
+        }
+
+        //Private functions
+        private void TrafficController() {
             Message m;
             Stopwatch.Start();
 
             while (true) {
                 Thread.Sleep(10);
+                //Check if port is open
+                if (ArduinoPort.IsOpen == false) {
+                    if (OnExceptionOccuredCallback != null) OnExceptionOccuredCallback(new Exception("Arduino port is closed."));
+                    IsConnected = false;
+                    TrafficControllerThread.Abort();
+                }
                 //KeepAlive check
                 if (Stopwatch.ElapsedMilliseconds >= KeepAliveSendInterval) {
                     Write(Constant.KeepAlive);
@@ -205,12 +240,12 @@ namespace ArduinoWrapper {
                             m.ResendCount++;
                             WriteBuffer.Enqueue(m);                            //reenqueue the message
                         } else
-                            OnExceptionOccuredCallback(new Exception("Failed to send message."));
+                            if (OnExceptionOccuredCallback != null) OnExceptionOccuredCallback(new Exception("Failed to send message."));
                 }
             }
         }
 
-        protected bool ReadACK() {
+        private bool ReadACK() {
             Message m;
             int timeLeft = ACKtimeout;
             while (timeLeft > 0) {
@@ -228,7 +263,7 @@ namespace ArduinoWrapper {
             return false;
         }
 
-        protected void ReceiveMessage(Message m) {
+        private void ReceiveMessage(Message m) {
             if (m.DataCorrupted() == false) { //If message is fine
                 ReadBuffer.Enqueue(m);        //add it to buffer,
                 WriteToPort(Constant.ACK);    //send a ACK and
@@ -236,13 +271,12 @@ namespace ArduinoWrapper {
                     OnReadCallback();         //call the appropriate callback
             }                                 //if it's corrupted do nothing and Arduino will send it again
         }
-        
-        protected Message ReadFromPort() {
+
+        private Message ReadFromPort() {
             //Wait for beginning of message
             if (ArduinoPort.BytesToRead > 1) { //Two or more bytes ready, check if they are a beggining of a message
                 if (ArduinoPort.ReadByte() == Constant.Beginning[0]) {
                     if (ArduinoPort.ReadByte() == Constant.Beginning[1]) {
-                        Console.WriteLine("Reading Data");
                         //Beggining received, read data length and checksum
                         while (ArduinoPort.BytesToRead < 2) { Thread.Sleep(10); }
                         byte[] data = new byte[2];
@@ -263,8 +297,7 @@ namespace ArduinoWrapper {
             return null;
         }
 
-        protected bool WriteToPort(Message m) {
-            Console.WriteLine("WriteToPort");
+        private bool WriteToPort(Message m) {
             if (m.Length > MaxMessageLength)
                 throw new Exception("Data too long.");
 

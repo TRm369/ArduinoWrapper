@@ -54,6 +54,8 @@
     </Compile>
     <Compile Include="Program.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
+    <Compile Include="Wrapper\Arduino.cs" />
+    <Compile Include="Wrapper\ArduinoBoardSpecification.cs" />
     <Compile Include="Wrapper\ArduinoSerialPort.cs" />
     <Compile Include="Wrapper\Constant.cs" />
     <Compile Include="Wrapper\Message.cs" />
@@ -70,6 +72,7 @@
       <AutoGen>True</AutoGen>
       <DependentUpon>Resources.resx</DependentUpon>
     </Compile>
+    <None Include="ArduinoWrapper.ino" />
     <None Include="Properties\Settings.settings">
       <Generator>SettingsSingleFileGenerator</Generator>
       <LastGenOutput>Settings.Designer.cs</LastGenOutput>

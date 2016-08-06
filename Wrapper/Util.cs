@@ -31,5 +31,22 @@ namespace ArduinoWrapper {
         public static short ByteArrayToShort(byte[] value) {
             return (short)(value[0] * Pow2_8 + value[1]);
         }
+
+        public static short ByteArrayToShort(byte byte0, byte byte1) {
+            return (short)(byte0 * Pow2_8 + byte1);
+        }
+
+        public static byte BoolToByte (bool value) {
+            if (value)
+                return 1;
+            else
+                return 0;
+        }
+        public static bool ByteToBool (byte value) {
+            if (value == 1)
+                return true;
+            else
+                return false;
+        }
     }
 }
